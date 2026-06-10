@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Samsons F6 HR Hub</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --teal:#0f3d3e; --teal2:#155e63; --accent:#c98a2b; --bg:#f4f5f3;
+    --card:#ffffff; --ink:#1c2321; --muted:#6b7670; --line:#e3e7e3;
+    --ok:#1f7a4d; --warn:#b4690e; --bad:#b3261e; --review:#7a5cc2;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  h1,h2,h3{margin:0;font-weight:600}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit;font-size:14px}
+  /* ---- PIN gate ---- */
+  #gate{position:fixed;inset:0;background:var(--teal);display:flex;align-items:center;justify-content:center;z-index:1000}
+  #gate .box{background:#fff;padding:34px 30px;border-radius:14px;width:320px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  #gate h2{color:var(--teal);margin-bottom:4px}
+  #gate p{color:var(--muted);margin:0 0 18px;font-size:13px}
+  #gate input{width:100%;padding:12px;text-align:center;font-size:22px;letter-spacing:8px;border:2px solid var(--line);border-radius:8px;margin-bottom:12px}
+  #gate button{width:100%;padding:12px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600}
+  #gate .err{color:var(--bad);font-size:13px;height:16px;margin-top:8px}
+  /* ---- header ---- */
+  header{background:var(--teal);color:#fff;padding:14px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  header .brand{display:flex;flex-direction:column}
+  header .brand b{font-size:18px;letter-spacing:.3px}
+  header .brand span{font-size:12px;opacity:.8}
+  header .meta{font-size:12px;text-align:right;opacity:.9}
+  #conn{display:inline-block;width:9px;height:9px;border-radius:50%;background:#6b7670;margin-right:6px;vertical-align:middle}
+  #conn.ok{background:#4ade80}#conn.bad{background:#f87171}
+  /* ---- tabs ---- */
+  nav{background:#0c302f;display:flex;flex-wrap:wrap;padding:0 12px}
+  nav button{background:none;border:none;color:#cfe0db;padding:13px 16px;font-size:13.5px;border-bottom:3px solid transparent}
+  nav button:hover{color:#fff}
+  nav button.active{color:#fff;border-bottom-color:var(--accent);font-weight:600}
+  /* ---- layout ---- */
+  main{padding:22px;max-width:1280px;margin:0 auto}
+  .panel{display:none}.panel.active{display:block}
+  .panel h2{font-size:20px;color:var(--teal);margin-bottom:4px}
+  .panel .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card .lab{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .card .val{font-size:30px;font-weight:700;color:var(--teal);margin-top:4px}
+  .card.alert .val{color:var(--bad)}.card.warn .val{color:var(--warn)}
+  .block{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+  .block h3{font-size:15px;color:var(--teal);margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f0f3f1;color:var(--teal);font-weight:600;position:sticky;top:0}
+  tbody tr:hover{background:#f7faf8}
+  .tbl-wrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600}
+  .pill.Present,.pill.Active,.pill.Approved,.pill.Current{background:#e3f4ea;color:var(--ok)}
+  .pill.Absent,.pill.Expired,.pill.Overdue{background:#fbe6e4;color:var(--bad)}
+  .pill.OD,.pill.Pending{background:#fdf0db;color:var(--warn)}
+  .pill.Holiday,.pill.Weekend{background:#eef1ef;color:var(--muted)}
+  .pill.Review{background:#efe9fb;color:var(--review)}
+  .pill.Leave-Paid{background:#e7eefb;color:#2456b3}
+  .pill.Leave-Unpaid{background:#fbe6e4;color:var(--bad)}
+  .flag{color:var(--bad);font-weight:700;font-size:11px}
+  .row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+  .field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+  .field label{font-size:12px;color:var(--muted);font-weight:600}
+  .field input,.field select,.field textarea{padding:9px;border:1px solid var(--line);border-radius:8px;min-width:170px}
+  .field textarea{min-height:64px;min-width:280px}
+  .btn{padding:9px 16px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13.5px}
+  .btn:hover{background:var(--teal2)}
+  .btn.ghost{background:#fff;color:var(--teal);border:1.5px solid var(--teal)}
+  .btn.accent{background:var(--accent)}.btn.accent:hover{filter:brightness(.95)}
+  .btn.sm{padding:5px 11px;font-size:12px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .muted{color:var(--muted)}
+  .empty{text-align:center;color:var(--muted);padding:34px 10px;font-size:13.5px}
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;padding:13px 18px;border-radius:10px;font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;transform:translateY(12px);transition:.25s;z-index:1200;max-width:340px}
+  .toast.show{opacity:1;transform:none}
+  .toast.ok{background:var(--ok)}.toast.bad{background:var(--bad)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.split{grid-template-columns:1fr}}
+  .note{background:#fdf6e8;border:1px solid #f0dcab;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#7a5b16;margin-bottom:12px}
+  .stub{text-align:center;padding:60px 20px}
+  .stub .ic{font-size:40px}.stub h3{color:var(--teal);margin:10px 0 6px}
+</style>
+</head>
+<body>
+
+<!-- PIN GATE -->
+<div id="gate">
+  <div class="box">
+    <h2>F6 HR Hub</h2>
+    <p>Samsons Head Office, Islamabad</p>
+    <input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off">
+    <button onclick="tryPin()">Unlock</button>
+    <div class="err" id="pinErr"></div>
+  </div>
+</div>
+
+<header>
+  <div class="brand"><b>Samsons F6 HR Hub</b><span>Head Office, F6 Islamabad</span></div>
+  <div class="meta"><span id="conn"></span><span id="connTxt">connecting</span><br><span id="clock"></span></div>
+</header>
+
+<nav id="nav"></nav>
+
+<main>
+  <!-- DASHBOARD -->
+  <section class="panel active" id="p-dashboard">
+    <h2>Dashboard</h2>
+    <div class="sub">Live snapshot across leave, attendance, documents and compliance.</div>
+    <div class="cards" id="dashCards"><div class="empty">Loading...</div></div>
+    <div class="split">
+      <div class="block"><h3>Documents expiring soon</h3><div id="dashDocs"></div></div>
+      <div class="block"><h3>Leave balances</h3><div class="tbl-wrap" id="dashLeave"></div></div>
+    </div>
+  </section>
+
+  <!-- STAFF -->
+  <section class="panel" id="p-staff">
+    <h2>Staff Master</h2>
+    <div class="sub">Single source of truth. Attendance keys on Biometric ID, not the export Employee ID.</div>
+    <div class="note">Rows marked <span class="pill Review">Review</span> need HR action: confirm the 7 head-office staff with no biometric punches and classify the 4 support staff.</div>
+    <div class="block">
+      <h3>Add or update staff</h3>
+      <div class="row">
+        <div class="field"><label>Emp ID</label><input id="st-emp"></div>
+        <div class="field"><label>Name</label><input id="st-name"></div>
+        <div class="field"><label>Department</label><input id="st-dept"></div>
+        <div class="field"><label>Biometric ID</label><input id="st-bio"></div>
+        <div class="field"><label>Designation</label><input id="st-desig"></div>
+        <div class="field"><label>Category</label><select id="st-cat"><option>Staff</option><option>Support</option></select></div>
+        <div class="field"><label>Status</label><select id="st-status"><option>Active</option><option>Review</option><option>Inactive</option></select></div>
+        <div class="field"><label>Saturday working</label><select id="st-sat"><option>No</option><option>Yes</option></select></div>
+        <div class="field"><label>&nbsp;</label><button class="btn" onclick="saveStaff()">Save staff</button></div>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="staffTbl"></div>
+  </section>
+
+  <!-- LEAVE -->
+  <section class="panel" id="p-leave">
+    <h2>Leave</h2>
+    <div class="sub">Apply, approve, and track balances against entitlement.</div>
+    <div class="block">
+      <h3>Apply for leave</h3>
+      <div class="row">
+        <div class="field"><label>Employee</label><select id="lv-emp"></select></div>
+        <div class="field"><label>Type</label><select id="lv-type"></select></div>
+        <div class="field"><label>From</label><input id="lv-from" type="date"></div>
+        <div class="field"><label>To</label><input id="lv-to" type="date"></div>
+        <div class="field"><label>Reason</label><input id="lv-reason"></div>
+        <div class="field"><label>&nbsp;</label><button class="btn" onclick="applyLeave()">Submit</button></div>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="leaveTbl"></div>
+  </section>
+
+  <!-- OUTDOOR DUTY -->
+  <section class="panel" id="p-od">
+    <h2>Outdoor Duty</h2>
+    <div class="sub">Log field duty so attendance never reads it as absence.</div>
+    <div class="block">
+      <h3>Log outdoor duty</h3>
+      <div class="row">
+        <div class="field"><label>Employee</label><select id="od-emp"></select></div>
+        <div class="field"><label>Date</label><input id="od-date" type="date"></div>
+        <div class="field"><label>Purpose</label><input id="od-purpose"></div>
+        <div class="field"><label>Location</label><input id="od-loc"></div>
+        <div class="field"><label>Out</label><input id="od-out" type="time"></div>
+        <div class="field"><label>In</label><input id="od-in" type="time"></div>
+        <div class="field"><label>&nbsp;</label><button class="btn" onclick="addOD()">Log duty</button></div>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="odTbl"></div>
+  </section>
+
+  <!-- ATTENDANCE -->
+  <section class="panel" id="p-att">
+    <h2>Attendance</h2>
+    <div class="sub">Import biometric punches, reconcile against leave and outdoor duty, generate the Finance report.</div>
+
+    <div class="split">
+      <div class="block">
+        <h3>1. Upload biometric file</h3>
+        <p class="muted" style="margin-top:0">Select the monthly .xlsx export. Punches are parsed in your browser and previewed before anything is saved.</p>
+        <input type="file" id="att-file" accept=".xlsx,.xls,.csv">
+      </div>
+      <div class="block">
+        <h3>or paste punch rows</h3>
+        <p class="muted" style="margin-top:0">Copy rows straight from the biometric sheet (with or without the header) and paste below.</p>
+        <textarea id="att-paste" style="width:100%;min-height:90px" placeholder="Date  Time  Terminal ID  User ID  Name  Employee ID  Result"></textarea>
+        <button class="btn sm ghost" onclick="parsePaste()" style="margin-top:8px">Parse pasted rows</button>
+      </div>
+    </div>
+
+    <div class="block" id="att-preview-block" style="display:none">
+      <h3>Preview <span class="muted" id="att-count"></span></h3>
+      <div id="att-unknown"></div>
+      <div class="tbl-wrap" style="max-height:300px" id="att-preview"></div>
+      <div style="margin-top:12px">
+        <button class="btn accent" onclick="commitAttendance()">Commit to Attendance Raw</button>
+        <button class="btn ghost" onclick="clearPreview()">Discard</button>
+      </div>
+    </div>
+
+    <div class="block">
+      <h3>2. Run reconciliation</h3>
+      <p class="muted" style="margin-top:0">Pay period runs the 22nd of the prior month to the 21st of the month you select.</p>
+      <div class="row">
+        <div class="field"><label>Year</label><select id="rec-year"></select></div>
+        <div class="field"><label>Month (period end)</label><select id="rec-month"></select></div>
+        <div class="field"><label>&nbsp;</label><button class="btn" onclick="runRecon()">Run reconciliation</button></div>
+      </div>
+      <div id="rec-result" class="muted"></div>
+    </div>
+
+    <div class="block">
+      <h3>3. Finance monthly report</h3>
+      <div class="row">
+        <div class="field"><label>Period</label><input id="fin-period" placeholder="2026-06"></div>
+        <div class="field"><label>&nbsp;</label><button class="btn" onclick="loadFinance()">Generate</button></div>
+        <div class="field"><label>&nbsp;</label><button class="btn accent" id="fin-export" onclick="exportFinance()" disabled>Export to Excel</button></div>
+      </div>
+      <div class="tbl-wrap" id="finTbl"></div>
+    </div>
+
+    <div class="block">
+      <h3>Reconciliation detail</h3>
+      <div class="row">
+        <div class="field"><label>Period</label><input id="recv-period" placeholder="2026-06"></div>
+        <div class="field"><label>&nbsp;</label><button class="btn ghost" onclick="loadReconView()">Load</button></div>
+      </div>
+      <div class="tbl-wrap" style="max-height:420px" id="reconTbl"></div>
+    </div>
+  </section>
+
+  <!-- WARNINGS -->
+  <section class="panel" id="p-warn">
+    <h2>Warnings</h2>
+    <div class="sub">Disciplinary record with level and expiry tracking.</div>
+    <div class="block">
+      <h3>Issue warning</h3>
+      <div class="row">
+        <div class="field"><label>Employee</label><select id="wn-emp"></select></div>
+        <div class="field"><label>Level</label><select id="wn-level"><option>Verbal</option><option>Written</option><option>Final</option></select></div>
+        <div class="field"><label>Date</label><input id="wn-date" type="date"></div>
+        <div class="field"><label>Expiry</label><input id="wn-exp" type="date"></div>
+        <div class="field"><label>Issued by</label><input id="wn-by"></div>
+        <div class="field"><label>Reason</label><input id="wn-reason"></div>
+        <div class="field"><label>&nbsp;</label><button class="btn" onclick="saveWarning()">Record</button></div>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="warnTbl"></div>
+  </section>
+
+  <!-- PERFORMANCE (stub) -->
+  <section class="panel" id="p-perf">
+    <h2>Performance</h2>
+    <div class="sub">KPI scorecards per role.</div>
+    <div class="block stub">
+      <div class="ic">📊</div>
+      <h3>Coming later</h3>
+      <p class="muted">The Performance_Metrics store and endpoints are live in the backend. This module switches on once F6 confirms the KPI metrics, targets, and weights per department. No rebuild needed, only wiring.</p>
+    </div>
+  </section>
+
+  <!-- DOCUMENTS -->
+  <section class="panel" id="p-doc">
+    <h2>Documents</h2>
+    <div class="sub">Contracts and sensitive records with expiry and renewal monitoring.</div>
+    <div class="block">
+      <h3>Add or update document</h3>
+      <div class="row">
+        <div class="field"><label>Title</label><input id="dc-title"></div>
+        <div class="field"><label>Holder</label><input id="dc-holder"></div>
+        <div class="field"><label>Linked Emp ID</label><input id="dc-emp"></div>
+        <div class="field"><label>Type</label><input id="dc-type" placeholder="Contract / NDA / License"></div>
+        <div class="field"><label>Issue date</label><input id="dc-issue" type="date"></div>
+        <div class="field"><label>Expiry date</label><input id="dc-exp" type="date"></div>
+        <div class="field"><label>Renewal status</label><select id="dc-renew"><option>Current</option><option>Due</option><option>In Progress</option><option>Renewed</option></select></div>
+        <div class="field"><label>Sensitivity</label><select id="dc-sens"><option>Standard</option><option>Confidential</option><option>Restricted</option></select></div>
+        <div class="field"><label>Link</label><input id="dc-link" placeholder="Drive URL"></div>
+        <div class="field"><label>&nbsp;</label><button class="btn" onclick="saveDocument()">Save document</button></div>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="docTbl"></div>
+  </section>
+
+  <!-- SOPs -->
+  <section class="panel" id="p-sop">
+    <h2>SOPs</h2>
+    <div class="sub">SOP library with version control and review-due dates.</div>
+    <div class="block">
+      <h3>Add or update SOP</h3>
+      <div class="row">
+        <div class="field"><label>Title</label><input id="sp-title"></div>
+        <div class="field"><label>Department</label><input id="sp-dept"></div>
+        <div class="field"><label>Owner</label><input id="sp-owner"></div>
+        <div class="field"><label>Version</label><input id="sp-ver" value="1.0"></div>
+        <div class="field"><label>Effective</label><input id="sp-eff" type="date"></div>
+        <div class="field"><label>Review due</label><input id="sp-rev" type="date"></div>
+        <div class="field"><label>Link</label><input id="sp-link"></div>
+        <div class="field"><label>&nbsp;</label><button class="btn" onclick="saveSOP()">Save SOP</button></div>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="sopTbl"></div>
+  </section>
+
+  <!-- ADMIN -->
+  <section class="panel" id="p-admin">
+    <h2>Admin</h2>
+    <div class="sub">Office calendar, working rules and holidays.</div>
+    <div class="split">
+      <div class="block">
+        <h3>Calendar and rules</h3>
+        <div id="cfgForm"></div>
+        <button class="btn" onclick="saveCfg()">Save settings</button>
+      </div>
+      <div class="block">
+        <h3>Holidays</h3>
+        <div class="row">
+          <div class="field"><label>Date</label><input id="hol-date" type="date"></div>
+          <div class="field"><label>Name</label><input id="hol-name"></div>
+          <div class="field"><label>&nbsp;</label><button class="btn sm" onclick="saveHoliday()">Add</button></div>
+        </div>
+        <div class="tbl-wrap" style="max-height:300px" id="holTbl"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbwVqT74YS8TakKCe9X2nOuRhPhxVNR_sWCov2VdccdnSHuoN83u49c2WcmFgsv94f_zNQ/exec";
+const PIN = "1234";
+let STATE = { staff:[], config:{}, leaveConfig:[], holidays:[], pin:PIN, finance:null };
+let pendingPunches = null;
+
+// ---- API ----
+async function api(action, payload){
+  const body = Object.assign({ action: action, user: 'HR' }, payload||{});
+  try{
+    const res = await fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    setConn(true);
+    if(data.status === 'error') throw new Error(data.message || 'Backend error');
+    return data;
+  }catch(e){ setConn(false); throw e; }
+}
+function setConn(ok){
+  document.getElementById('conn').className = ok ? 'ok' : 'bad';
+  document.getElementById('connTxt').textContent = ok ? 'connected' : 'offline';
+}
+function toast(msg, type){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + (type||'');
+  setTimeout(()=>{ t.className='toast'; }, 3200);
+}
+
+// ---- PIN ----
+function tryPin(){
+  const v = document.getElementById('pin').value;
+  if(v === PIN){ document.getElementById('gate').style.display='none'; init(); }
+  else { document.getElementById('pinErr').textContent='Incorrect PIN'; }
+}
+document.getElementById('pin').addEventListener('keydown',e=>{ if(e.key==='Enter') tryPin(); });
+
+// ---- TABS ----
+const TABS = [
+  ['dashboard','Dashboard'],['staff','Staff'],['leave','Leave'],['od','Outdoor Duty'],
+  ['att','Attendance'],['warn','Warnings'],['perf','Performance'],['doc','Documents'],
+  ['sop','SOPs'],['admin','Admin']
+];
+function buildNav(){
+  const nav = document.getElementById('nav');
+  TABS.forEach(([id,label])=>{
+    const b = document.createElement('button');
+    b.textContent = label; b.id = 'nav-'+id;
+    if(id==='dashboard') b.className='active';
+    b.onclick = ()=> showTab(id);
+    nav.appendChild(b);
+  });
+}
+function showTab(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('p-'+id).classList.add('active');
+  document.getElementById('nav-'+id).classList.add('active');
+  if(id==='dashboard') loadDashboard();
+  if(id==='staff') renderStaff();
+  if(id==='leave') loadLeave();
+  if(id==='od') loadOD();
+  if(id==='warn') loadWarnings();
+  if(id==='doc') loadDocuments();
+  if(id==='sop') loadSOPs();
+  if(id==='admin') renderAdmin();
+}
+
+// ---- helpers ----
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function pill(v){ return '<span class="pill '+esc(v)+'">'+esc(v)+'</span>'; }
+function opt(sel, items, valKey, labKey){
+  sel.innerHTML = items.map(i=>'<option value="'+esc(i[valKey])+'">'+esc(i[labKey])+'</option>').join('');
+}
+function staffOptions(sel){
+  sel.innerHTML = STATE.staff.map(s=>'<option value="'+esc(s.EmpID)+'">'+esc(s.Name)+' ('+esc(s.EmpID)+')</option>').join('');
+}
+function fmtDate(d){ return d? String(d).slice(0,10):''; }
+
+// ---- INIT ----
+async function init(){
+  try{
+    const b = await api('bootstrap');
+    STATE.staff = b.staff||[];
+    STATE.config = b.config||{};
+    STATE.leaveConfig = b.leaveConfig||[];
+    STATE.holidays = b.holidays||[];
+    buildNav();
+    buildPeriodSelectors();
+    loadDashboard();
+    tick(); setInterval(tick,1000);
+  }catch(e){ toast('Cannot reach backend: '+e.message,'bad'); }
+}
+function tick(){
+  document.getElementById('clock').textContent =
+    new Date().toLocaleString('en-GB',{timeZone:'Asia/Karachi',hour12:false});
+}
+
+// ---- DASHBOARD ----
+async function loadDashboard(){
+  try{
+    const d = await api('getDashboard');
+    const c = [
+      ['Headcount', d.headcount, ''],
+      ['Support staff', d.supportCount, ''],
+      ['OD pending recon', d.odPending, d.odPending>0?'warn':''],
+      ['Attendance exceptions', d.attendanceExceptions, d.attendanceExceptions>0?'alert':''],
+      ['Active warnings', d.activeWarnings, d.activeWarnings>0?'warn':''],
+      ['SOPs due review', d.sopsDue, d.sopsDue>0?'warn':'']
+    ];
+    document.getElementById('dashCards').innerHTML = c.map(x=>
+      '<div class="card '+x[2]+'"><div class="lab">'+x[0]+'</div><div class="val">'+x[1]+'</div></div>').join('');
+    // docs expiring
+    const b = d.docsExpiring||{expired:[],d30:[],d60:[],d90:[]};
+    const groups = [['Expired',b.expired,'bad'],['Within 30 days',b.d30,'warn'],['31 to 60 days',b.d60,''],['61 to 90 days',b.d90,'']];
+    let html='';
+    groups.forEach(g=>{ if(g[1] && g[1].length){
+      html += '<div style="margin-bottom:8px"><b style="color:var(--'+(g[2]||'muted')+')">'+g[0]+'</b><ul style="margin:4px 0 0;padding-left:18px">'+
+        g[1].map(r=>'<li>'+esc(r.title)+' - '+esc(r.holder)+' ('+esc(r.expiry)+', '+r.days+'d)</li>').join('')+'</ul></div>';
+    }});
+    document.getElementById('dashDocs').innerHTML = html || '<div class="empty">No documents expiring in 90 days.</div>';
+    // leave balances
+    const lb = d.leaveBalances||[];
+    if(lb.length){
+      document.getElementById('dashLeave').innerHTML = table(
+        ['Name','Type','Entitlement','Used','Balance'],
+        lb.filter(r=>r.entitlement>0).map(r=>[r.name,r.type,r.entitlement,r.used,r.balance]));
+    } else document.getElementById('dashLeave').innerHTML='<div class="empty">No leave recorded yet.</div>';
+  }catch(e){ document.getElementById('dashCards').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+function table(head, rows){
+  if(!rows.length) return '<div class="empty">No records.</div>';
+  return '<table><thead><tr>'+head.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(r=>'<tr>'+r.map(c=>'<td>'+(c==null?'':c)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+}
+
+// ---- STAFF ----
+function renderStaff(){
+  const rows = STATE.staff.map(s=>[
+    esc(s.EmpID), esc(s.Name), esc(s.Department), esc(s.BiometricID),
+    esc(s.Category), pill(s.Status||'Active'), esc(s.SaturdayWorking)
+  ]);
+  document.getElementById('staffTbl').innerHTML =
+    table(['Emp ID','Name','Department','Biometric ID','Category','Status','Sat'],rows);
+}
+async function saveStaff(){
+  const s = {
+    EmpID:val('st-emp'), Name:val('st-name'), Department:val('st-dept'), BiometricID:val('st-bio'),
+    Designation:val('st-desig'), Category:val('st-cat'), Status:val('st-status'), SaturdayWorking:val('st-sat')
+  };
+  if(!s.EmpID || !s.Name){ toast('Emp ID and Name are required','bad'); return; }
+  try{ const r=await api('saveStaff',{staff:s}); toast('Staff '+r.mode,'ok');
+    const b=await api('bootstrap'); STATE.staff=b.staff; renderStaff();
+  }catch(e){ toast(e.message,'bad'); }
+}
+
+// ---- LEAVE ----
+async function loadLeave(){
+  staffOptions(document.getElementById('lv-emp'));
+  opt(document.getElementById('lv-type'), STATE.leaveConfig, 'LeaveType','LeaveType');
+  try{
+    const d = await api('getLeave');
+    const rows = (d.leave||[]).map(l=>[
+      esc(l.EmpID), esc(l.Type), fmtDate(l.FromDate), fmtDate(l.ToDate), l.Days,
+      pill(l.Status), leaveActions(l)]);
+    document.getElementById('leaveTbl').innerHTML =
+      table(['Emp ID','Type','From','To','Days','Status','Action'],rows);
+  }catch(e){ document.getElementById('leaveTbl').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+function leaveActions(l){
+  if(String(l.Status).toUpperCase()==='PENDING')
+    return '<button class="btn sm" onclick="setLeave(\''+l.LeaveID+'\',\'Approved\')">Approve</button> '+
+           '<button class="btn sm ghost" onclick="setLeave(\''+l.LeaveID+'\',\'Rejected\')">Reject</button>';
+  return '';
+}
+async function applyLeave(){
+  const l = {EmpID:val('lv-emp'),Type:val('lv-type'),FromDate:val('lv-from'),ToDate:val('lv-to'),Reason:val('lv-reason'),Status:'Pending'};
+  if(!l.FromDate||!l.ToDate){ toast('From and To dates required','bad'); return; }
+  try{ await api('applyLeave',{leave:l}); toast('Leave submitted','ok'); loadLeave(); }
+  catch(e){ toast(e.message,'bad'); }
+}
+async function setLeave(id,status){
+  try{ await api('updateLeaveStatus',{leaveId:id,newStatus:status,approver:'HR'}); toast('Leave '+status,'ok'); loadLeave(); }
+  catch(e){ toast(e.message,'bad'); }
+}
+
+// ---- OD ----
+async function loadOD(){
+  staffOptions(document.getElementById('od-emp'));
+  try{
+    const d = await api('getOD');
+    const rows = (d.od||[]).map(o=>[
+      esc(o.EmpID), fmtDate(o.Date), esc(o.Purpose), esc(o.Location),
+      esc(o.OutTime), esc(o.InTime), pill(o.Status), esc(o.Reconciled), odActions(o)]);
+    document.getElementById('odTbl').innerHTML =
+      table(['Emp ID','Date','Purpose','Location','Out','In','Status','Recon','Action'],rows);
+  }catch(e){ document.getElementById('odTbl').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+function odActions(o){
+  let h='';
+  if(String(o.Status).toUpperCase()==='PENDING')
+    h+='<button class="btn sm" onclick="setOD(\''+o.ODID+'\',\'Approved\',null)">Approve</button> ';
+  if(String(o.Reconciled).toUpperCase()!=='YES')
+    h+='<button class="btn sm ghost" onclick="setOD(\''+o.ODID+'\',null,\'Yes\')">Reconcile</button>';
+  return h;
+}
+async function addOD(){
+  const o={EmpID:val('od-emp'),Date:val('od-date'),Purpose:val('od-purpose'),Location:val('od-loc'),OutTime:val('od-out'),InTime:val('od-in'),Status:'Pending'};
+  if(!o.Date){ toast('Date required','bad'); return; }
+  try{ await api('addOD',{od:o}); toast('Outdoor duty logged','ok'); loadOD(); }
+  catch(e){ toast(e.message,'bad'); }
+}
+async function setOD(id,status,recon){
+  try{ await api('updateODStatus',{odId:id,newStatus:status,reconciled:recon}); toast('Updated','ok'); loadOD(); }
+  catch(e){ toast(e.message,'bad'); }
+}
+
+// ---- ATTENDANCE: parsing ----
+function toHM(v){
+  if(v==null||v==='') return '';
+  if(v instanceof Date) return ('0'+v.getHours()).slice(-2)+':'+('0'+v.getMinutes()).slice(-2);
+  if(typeof v==='number'){ // excel time fraction
+    const t=Math.round((v%1)*86400); const h=Math.floor(t/3600), m=Math.floor((t%3600)/60);
+    return ('0'+h).slice(-2)+':'+('0'+m).slice(-2);
+  }
+  const s=String(v).trim();
+  let m=s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if(m){ let h=parseInt(m[1],10); const ap=(m[3]||'').toUpperCase();
+    if(ap==='PM'&&h<12)h+=12; if(ap==='AM'&&h===12)h=0; return ('0'+h).slice(-2)+':'+m[2]; }
+  return s.slice(0,5);
+}
+function toYMD(v){
+  if(v==null||v==='') return '';
+  if(v instanceof Date) return v.getFullYear()+'-'+('0'+(v.getMonth()+1)).slice(-2)+'-'+('0'+v.getDate()).slice(-2);
+  if(typeof v==='number'){ const d=new Date(Math.round((v-25569)*86400*1000)); return toYMD(d); }
+  const s=String(v).trim();
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return m[1]+'-'+m[2]+'-'+m[3];
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return m[3]+'-'+('0'+m[1]).slice(-2)+'-'+('0'+m[2]).slice(-2);
+  const d=new Date(s); if(!isNaN(d)) return toYMD(d);
+  return s.slice(0,10);
+}
+function pickCol(headers, names){
+  for(let n of names){ const i=headers.findIndex(h=>String(h).trim().toLowerCase()===n); if(i>=0) return i; }
+  return -1;
+}
+function normalizeRows(matrix){
+  // matrix: array of arrays incl header row
+  if(!matrix.length) return [];
+  let head = matrix[0].map(h=>String(h).trim().toLowerCase());
+  let hasHeader = head.includes('user id') || head.includes('date');
+  let body, idx;
+  if(hasHeader){
+    body = matrix.slice(1);
+    idx = { date:pickCol(head,['date']), time:pickCol(head,['time']),
+            user:pickCol(head,['user id','userid']), name:pickCol(head,['name']) };
+  } else {
+    body = matrix;
+    idx = { date:0, time:1, user:3, name:4 }; // standard export column order
+  }
+  const out=[];
+  body.forEach(r=>{
+    if(!r || r.every(c=>c===''||c==null)) return;
+    const bioId = String(r[idx.user]==null?'':r[idx.user]).trim();
+    const date = toYMD(r[idx.date]);
+    const time = toHM(r[idx.time]);
+    const name = idx.name>=0 ? String(r[idx.name]||'').trim() : '';
+    if(bioId && date) out.push({bioId, name, date, time});
+  });
+  return out;
+}
+document.getElementById('att-file').addEventListener('change', function(e){
+  const f=e.target.files[0]; if(!f) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const matrix=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+      const rows=normalizeRows(matrix);
+      showPreview(rows,'Upload');
+    }catch(err){ toast('Could not read file: '+err.message,'bad'); }
+  };
+  reader.readAsArrayBuffer(f);
+});
+function parsePaste(){
+  const txt=document.getElementById('att-paste').value.trim();
+  if(!txt){ toast('Paste some rows first','bad'); return; }
+  const matrix=txt.split(/\r?\n/).map(l=>l.split('\t'));
+  const rows=normalizeRows(matrix);
+  if(!rows.length){ toast('No valid rows found. Check columns include User ID, Date, Time.','bad'); return; }
+  showPreview(rows,'Paste');
+}
+function showPreview(rows, source){
+  if(!rows.length){ toast('No valid punch rows found','bad'); return; }
+  // collapse to per person per day for preview
+  const grp={};
+  rows.forEach(p=>{ const k=p.bioId+'||'+p.date;
+    if(!grp[k]) grp[k]={bioId:p.bioId,name:p.name,date:p.date,times:[]};
+    if(p.time) grp[k].times.push(p.time); });
+  const byBio={}; STATE.staff.forEach(s=>{ if(s.BiometricID!=='') byBio[String(s.BiometricID)]=s; });
+  const days=Object.values(grp).sort((a,b)=>a.date.localeCompare(b.date)||a.bioId-b.bioId);
+  const unknown={};
+  const trows=days.map(g=>{ g.times.sort();
+    const s=byBio[g.bioId]; if(!s) unknown[g.bioId]=g.name;
+    return [esc(g.bioId), s?esc(s.EmpID):'<span class="flag">unmapped</span>', esc(g.name||(s?s.Name:'')),
+      g.date, g.times[0]||'', g.times[g.times.length-1]||'', g.times.length+(g.times.length<2?' <span class="flag">single</span>':'')]; });
+  document.getElementById('att-preview').innerHTML =
+    table(['Bio ID','Emp ID','Name','Date','First In','Last Out','Punches'],trows);
+  const uk=Object.keys(unknown);
+  document.getElementById('att-unknown').innerHTML = uk.length
+    ? '<div class="note">'+uk.length+' biometric ID(s) not mapped to staff: '+uk.map(id=>esc(id)+(unknown[id]?' ('+esc(unknown[id])+')':'')).join(', ')+'. They import but will not reconcile until mapped in Staff Master.</div>'
+    : '';
+  document.getElementById('att-count').textContent = '('+days.length+' person-days, '+rows.length+' punches, source: '+source+')';
+  pendingPunches = rows;
+  document.getElementById('att-preview-block').style.display='block';
+}
+function clearPreview(){
+  pendingPunches=null;
+  document.getElementById('att-preview-block').style.display='none';
+  document.getElementById('att-paste').value='';
+  document.getElementById('att-file').value='';
+}
+async function commitAttendance(){
+  if(!pendingPunches){ toast('Nothing to commit','bad'); return; }
+  try{
+    const r=await api('ingestAttendance',{punches:pendingPunches, source:'Portal'});
+    toast('Saved: '+r.added+' new, '+r.updated+' updated','ok');
+    clearPreview();
+  }catch(e){ toast(e.message,'bad'); }
+}
+
+// ---- ATTENDANCE: reconciliation + finance ----
+function buildPeriodSelectors(){
+  const y=new Date().getFullYear();
+  const ys=document.getElementById('rec-year');
+  ys.innerHTML=[y-1,y,y+1].map(v=>'<option'+(v===y?' selected':'')+'>'+v+'</option>').join('');
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const ms=document.getElementById('rec-month');
+  const cm=new Date().getMonth()+1;
+  ms.innerHTML=months.map((m,i)=>'<option value="'+(i+1)+'"'+((i+1)===cm?' selected':'')+'>'+m+'</option>').join('');
+  const p=y+'-'+('0'+cm).slice(-2);
+  document.getElementById('fin-period').value=p;
+  document.getElementById('recv-period').value=p;
+}
+async function runRecon(){
+  const year=val('rec-year'), month=val('rec-month');
+  document.getElementById('rec-result').textContent='Running...';
+  try{
+    const r=await api('runReconciliation',{year:year,month:month});
+    document.getElementById('rec-result').innerHTML=
+      'Done. Period <b>'+r.period+'</b> ('+r.from+' to '+r.to+'), '+r.rows+' day records built.';
+    toast('Reconciliation complete','ok');
+  }catch(e){ document.getElementById('rec-result').textContent=''; toast(e.message,'bad'); }
+}
+async function loadFinance(){
+  const period=val('fin-period');
+  try{
+    const r=await api('getFinanceReport',{period:period});
+    STATE.finance=r;
+    const rows=r.report.map(a=>[esc(a.empId),esc(a.name),esc(a.department),a.working,a.present,a.od,
+      a.paidLeave,a.unpaidLeave,a.absent,a.late,'<b>'+a.payableDays+'</b>',a.deductibleDays]);
+    document.getElementById('finTbl').innerHTML=table(
+      ['Emp ID','Name','Dept','Working','Present','OD','Paid Lv','Unpaid','Absent','Late','Payable','Deduct'],rows);
+    document.getElementById('fin-export').disabled = !rows.length;
+  }catch(e){ document.getElementById('finTbl').innerHTML='<div class="empty">'+esc(e.message)+'</div>';
+    document.getElementById('fin-export').disabled=true; }
+}
+function exportFinance(){
+  if(!STATE.finance) return;
+  const r=STATE.finance;
+  const data=r.report.map(a=>({
+    'Emp ID':a.empId,'Name':a.name,'Department':a.department,'Working Days':a.working,
+    'Present':a.present,'OD':a.od,'Paid Leave':a.paidLeave,'Unpaid Leave':a.unpaidLeave,
+    'Absent':a.absent,'Late Count':a.late,'Short Hours':a.shortHours,
+    'Payable Days':a.payableDays,'Deductible Days':a.deductibleDays}));
+  const ws=XLSX.utils.json_to_sheet(data);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Finance '+r.period);
+  XLSX.writeFile(wb,'F6_Attendance_Finance_'+r.period+'.xlsx');
+}
+async function loadReconView(){
+  const period=val('recv-period');
+  try{
+    const r=await api('getRecon',{period:period});
+    const rows=(r.recon||[]).map(x=>[esc(x.EmpID),esc(x.Name),x.Date,pill(x.Status),
+      esc(x.FirstIn),esc(x.LastOut),
+      (x.LateFlag?'<span class="flag">LATE</span> ':'')+(x.ShortHoursFlag?'<span class="flag">SHORT</span>':''),
+      esc(x.Exception), esc(x.Notes)]);
+    document.getElementById('reconTbl').innerHTML=table(
+      ['Emp ID','Name','Date','Status','In','Out','Flags','Exception','Notes'],rows);
+  }catch(e){ document.getElementById('reconTbl').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+
+// ---- WARNINGS ----
+async function loadWarnings(){
+  staffOptions(document.getElementById('wn-emp'));
+  try{
+    const d=await api('getWarnings');
+    const rows=(d.warnings||[]).map(w=>[esc(w.EmpID),fmtDate(w.Date),esc(w.Level),esc(w.Reason),
+      esc(w.IssuedBy),pill(w.Status||'Active'),fmtDate(w.ExpiryDate)]);
+    document.getElementById('warnTbl').innerHTML=table(
+      ['Emp ID','Date','Level','Reason','By','Status','Expiry'],rows);
+  }catch(e){ document.getElementById('warnTbl').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+async function saveWarning(){
+  const w={EmpID:val('wn-emp'),Level:val('wn-level'),Date:val('wn-date'),ExpiryDate:val('wn-exp'),
+    IssuedBy:val('wn-by'),Reason:val('wn-reason'),Status:'Active'};
+  if(!w.EmpID||!w.Reason){ toast('Employee and reason required','bad'); return; }
+  try{ await api('saveWarning',{warning:w}); toast('Warning recorded','ok'); loadWarnings(); }
+  catch(e){ toast(e.message,'bad'); }
+}
+
+// ---- DOCUMENTS ----
+async function loadDocuments(){
+  try{
+    const d=await api('getDocuments',{pin:STATE.pin});
+    const today=new Date();
+    const rows=(d.documents||[]).map(x=>{
+      let status='Current';
+      if(x.ExpiryDate){ const days=Math.round((new Date(fmtDate(x.ExpiryDate))-today)/86400000);
+        if(days<0)status='Expired'; else if(days<=30)status='Due'; }
+      return [esc(x.Title),esc(x.Holder),esc(x.Type),fmtDate(x.IssueDate),fmtDate(x.ExpiryDate),
+        pill(status),esc(x.Sensitivity),x.Link?'<a href="'+esc(x.Link)+'" target="_blank">open</a>':''];
+    });
+    document.getElementById('docTbl').innerHTML=table(
+      ['Title','Holder','Type','Issued','Expiry','Status','Sensitivity','Link'],rows);
+  }catch(e){ document.getElementById('docTbl').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+async function saveDocument(){
+  const d={Title:val('dc-title'),Holder:val('dc-holder'),EmpID:val('dc-emp'),Type:val('dc-type'),
+    IssueDate:val('dc-issue'),ExpiryDate:val('dc-exp'),RenewalStatus:val('dc-renew'),
+    Sensitivity:val('dc-sens'),Link:val('dc-link')};
+  if(!d.Title){ toast('Title required','bad'); return; }
+  try{ await api('saveDocument',{document:d,pin:STATE.pin}); toast('Document saved','ok'); loadDocuments(); }
+  catch(e){ toast(e.message,'bad'); }
+}
+
+// ---- SOPs ----
+async function loadSOPs(){
+  try{
+    const d=await api('getSOPs');
+    const rows=(d.sops||[]).map(s=>[esc(s.Title),esc(s.Department),esc(s.Owner),esc(s.Version),
+      fmtDate(s.EffectiveDate),fmtDate(s.ReviewDue),pill(s.Status||'Active'),
+      s.Link?'<a href="'+esc(s.Link)+'" target="_blank">open</a>':'']);
+    document.getElementById('sopTbl').innerHTML=table(
+      ['Title','Dept','Owner','Version','Effective','Review due','Status','Link'],rows);
+  }catch(e){ document.getElementById('sopTbl').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+async function saveSOP(){
+  const s={Title:val('sp-title'),Department:val('sp-dept'),Owner:val('sp-owner'),Version:val('sp-ver'),
+    EffectiveDate:val('sp-eff'),ReviewDue:val('sp-rev'),Link:val('sp-link'),Status:'Active'};
+  if(!s.Title){ toast('Title required','bad'); return; }
+  try{ await api('saveSOP',{sop:s}); toast('SOP saved','ok'); loadSOPs(); }
+  catch(e){ toast(e.message,'bad'); }
+}
+
+// ---- ADMIN ----
+function renderAdmin(){
+  const c=STATE.config||{};
+  const fields=[
+    ['WorkStart','Work start (HH:MM)'],['WorkEnd','Work end (HH:MM)'],
+    ['GraceMinutes','Grace minutes'],['SaturdayOff','Saturday off (YES/NO)'],
+    ['PayCycleStartDay','Pay cycle start day'],['FridayJummahMinutes','Friday Jummah minutes'],
+    ['OfficeName','Office name']
+  ];
+  document.getElementById('cfgForm').innerHTML = fields.map(f=>
+    '<div class="field"><label>'+f[1]+'</label><input id="cfg-'+f[0]+'" value="'+esc(c[f[0]]||'')+'"></div>').join('');
+  renderHolidays();
+}
+async function saveCfg(){
+  const keys=['WorkStart','WorkEnd','GraceMinutes','SaturdayOff','PayCycleStartDay','FridayJummahMinutes','OfficeName'];
+  const cfg={}; keys.forEach(k=>cfg[k]=val('cfg-'+k));
+  try{ await api('saveConfig',{config:cfg}); STATE.config=cfg; toast('Settings saved','ok'); }
+  catch(e){ toast(e.message,'bad'); }
+}
+function renderHolidays(){
+  const rows=(STATE.holidays||[]).map(h=>[fmtDate(h.Date),esc(h.Name),
+    '<button class="btn sm ghost" onclick="delHoliday(\''+fmtDate(h.Date)+'\')">Remove</button>']);
+  document.getElementById('holTbl').innerHTML=table(['Date','Name','Action'],rows);
+}
+async function saveHoliday(){
+  const h={Date:val('hol-date'),Name:val('hol-name')};
+  if(!h.Date){ toast('Date required','bad'); return; }
+  try{ await api('saveHoliday',{holiday:h}); const b=await api('getConfig'); STATE.holidays=b.holidays; renderHolidays(); toast('Holiday saved','ok'); }
+  catch(e){ toast(e.message,'bad'); }
+}
+async function delHoliday(date){
+  try{ await api('deleteHoliday',{date:date}); const b=await api('getConfig'); STATE.holidays=b.holidays; renderHolidays(); toast('Removed','ok'); }
+  catch(e){ toast(e.message,'bad'); }
+}
+
+// ---- util ----
+function val(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
+</script>
+</body>
+</html>
