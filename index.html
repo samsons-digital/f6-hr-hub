@@ -463,12 +463,23 @@ async function loadDashboard(){
         g[1].map(r=>'<li>'+esc(r.title)+' - '+esc(r.holder)+' ('+esc(r.expiry)+', '+r.days+'d)</li>').join('')+'</ul></div>';
     }});
     document.getElementById('dashDocs').innerHTML = html || '<div class="empty">No documents expiring in 90 days.</div>';
-    // leave balances
+    // leave balances - one row per person, a column per leave type (balance shown)
     const lb = d.leaveBalances||[];
     if(lb.length){
-      document.getElementById('dashLeave').innerHTML = table(
-        ['Name','Type','Entitlement','Used','Balance'],
-        lb.filter(r=>r.entitlement>0).map(r=>[r.name,r.type,r.entitlement,r.used,r.balance]));
+      let types = (STATE.leaveConfig||[]).map(c=>String(c.LeaveType));
+      if(!types.length){ const seen={}; lb.forEach(r=>seen[r.type]=1); types=Object.keys(seen); }
+      const people={}, order=[];
+      lb.forEach(r=>{
+        if(!people[r.empId]){ people[r.empId]={name:r.name,bal:{}}; order.push(r.empId); }
+        people[r.empId].bal[r.type]=r.balance;
+      });
+      const rows=order.map(id=>{ const p=people[id];
+        return [esc(p.name), ...types.map(t=>{ const v=p.bal[t];
+          if(v==null||v==='') return '';
+          return (Number(v)<0? '<span style="color:var(--bad)">'+v+'</span>' : v);
+        })];
+      });
+      document.getElementById('dashLeave').innerHTML = table(['Name', ...types], rows);
     } else document.getElementById('dashLeave').innerHTML='<div class="empty">No leave recorded yet.</div>';
   }catch(e){ document.getElementById('dashCards').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
 }
